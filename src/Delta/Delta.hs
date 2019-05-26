@@ -21,7 +21,8 @@ import Data.Semigroup
 import Data.Bifunctor
 import GHC.Generics
 import Data.Functor.Identity
-
+import Data.Void
+import Control.Applicative
 --- DEV Imports
 ---
 import Generics.OneLiner
@@ -38,27 +39,27 @@ import Generics.OneLiner
 --   DeltaReturn a False False = Maybe (Either () (DeltaOf a))
 
 
-data  Changed a = Unchanged | Changed a deriving (Show,Functor)
-instance Applicative Changed where
+data  Change a = Unchanged | Changed a deriving (Show,Functor)
+instance Applicative Change where
   pure = Changed
   Changed f <*> Changed a = Changed $ f a
   _ <*> _ = Unchanged
-instance Semigroup a => Semigroup (Changed a) where
+instance Semigroup a => Semigroup (Change a) where
   Changed a <> Changed b = Changed (a <> b)
   Unchanged <> b = b
   a <> Unchanged = a
-instance Semigroup a => Monoid (Changed a) where
+instance Semigroup a => Monoid (Change a) where
   mempty = Unchanged
-instance Foldable Changed where
+instance Foldable Change where
   foldr f b (Changed a) = f a b
   foldr _ b _ = b
   foldMap em (Changed a) = em a
   foldMap _  (Unchanged) = mempty
 
-instance Traversable Changed where
+instance Traversable Change where
   traverse f (Changed a) = Changed <$> f a
   traverse _ _   = pure Unchanged
-isChanged :: Changed a -> Bool
+isChanged :: Change a -> Bool
 isChanged Unchanged = False
 isChanged _ = True
 -- changedToMaybe :: Changed a-> Maybe a
@@ -93,14 +94,21 @@ instance Monoid (Revise r (r -> r)) where
   mempty = Update id
 
 
-newtype CtxDeltaOnly a = CtxDeltaOnly (DeltaOf a)
-newtype CtxDeltaChanged a = CtxDeltaChanged (Changed (DeltaOf a))
-newtype CtxPatchPoint a = CtxPatchChanged (Changed (PatchOf a))
 
-class (CanPatch (DeltaCtx a)) => HasDelta a where
+-- NOTE
+-- TODO
+-- TODO
+-- newtype CtxDeltaOnly a = CtxDeltaOnly (DeltaOf a)
+-- newtype CtxDeltaChanged a = CtxDeltaChanged (Changed (DeltaOf a))
+newtype PatchPointCtx a d =
+  PatchPointCtx { getPatchPointCtx :: Change (Revise a d) }
+  deriving (Generic,Show,Functor)
+-- deriving instance (Constraints (PatchPointCtx a) Show) => Show (PatchPointCtx a)
+
+class HasDelta a where
   type DeltaOf a
   type DeltaCtx a :: * -> *
-  type DeltaCtx a = Maybe
+  type DeltaCtx a = Revise a
   calcDeltaOf    :: a -> a -> DeltaCtx a (DeltaOf a)
   default calcDeltaOf :: ( Generic a, Generic (DeltaOf a)
                          , HasDeltaGen (DeltaCtx a) (Rep a) (Rep (DeltaOf a))
@@ -108,25 +116,20 @@ class (CanPatch (DeltaCtx a)) => HasDelta a where
      a -> a -> DeltaCtx a (DeltaOf a)
   calcDeltaOf a = fmap to . calcDeltaGen @(DeltaCtx a) (from a) . from
 
-  -- calcDeltaPoint    :: a -> a -> Maybe (Changed (DeltaOf a))
+  -- calcDeltaPoint    :: a -> a -> Maybe (Change (DeltaOf a))
   -- applyDeltaOf :: a -> DeltaOf a -> Maybe a
 
 type PatchOf a = Revise a (DeltaOf a)
 
-calcPatchOf :: HasDelta a => a -> a -> PatchOf a
-calcPatchOf a a' = maybe (Replace a') Update . toMaybeCtx $ calcDeltaOf a a'
+-- calcPatchOf :: HasDelta a => a -> a -> PatchOf a
+-- calcPatchOf a a' = maybe (Replace a') Update . toMaybeCtx $ calcDeltaOf a a'
 
-class (Functor f) => CanPatch f where
-  toMaybeCtx :: f a -> Maybe a
-instance CanPatch Maybe where
-  toMaybeCtx = id
-instance CanPatch Identity where
-  toMaybeCtx = Just . runIdentity
+
 
 class HasDelta0 a where
-  nullify :: a -> Changed a
+  nullify :: a -> Change a
   default nullify :: (Generic a, HasDelta0Gen (Rep a)) =>
-    a -> Changed a
+    a -> Change a
   nullify = fmap to . nullifyGen . from
 instance HasDelta0 () where
   nullify _ = Unchanged
@@ -134,7 +137,7 @@ instance HasDelta0 (Static a) where
   nullify _ = Unchanged
 instance HasDelta0 a => HasDelta0 (Identity a) where
   nullify = traverse nullify
-instance HasDelta0 (Changed a) where
+instance HasDelta0 (Change a) where
   nullify = fmap Changed
 instance HasDelta0 a => HasDelta0 (Maybe a) where
   nullify = traverse nullify
@@ -143,18 +146,11 @@ instance HasDelta0 a => HasDelta0 [a] where
 instance HasDelta0 u => HasDelta0 (Revise r u) where
   nullify = traverse nullify
 
-nullifyAny :: (Foldable f, HasDelta0 a) => f a -> Changed (f a)
+nullifyAny :: (Foldable f, HasDelta0 a) => f a -> Change (f a)
 nullifyAny as | any (isChanged . nullify) as = Changed as
               | otherwise                    = Unchanged
 
 
--- calcPatchPoint ::                     (HasDelta a) =>
---   a -> a -> PatchPoint a
--- calcPatchPoint a a' = sequenceA . maybe (Left a') Right $ calcPatch a a'
-
--- calcPatchPoint ::                     (HasDelta a) =>
---   a -> a -> PatchPoint a
--- calcPatchPoint a a' = maybe (Left a') Right $ calcDeltaOf a a'
 data Z a
 data Static a = Static deriving (Generic,Show,Functor)
 data Delta a
@@ -166,37 +162,74 @@ type family Point (k :: DeltaPointKind) (f :: * -> *) (a :: *) :: * where
   Point f Delta a = PointInDelta f a
 type family PointInDelta (k :: DeltaPointKind) (a :: * ):: * where
   PointInDelta StaticPointType a = Static a
-  -- PointInDelta DeltaPointType  a = Changed (DeltaOf a)
-  PointInDelta PatchPointType  a = Changed (PatchOf a)
+  -- PointInDelta DeltaPointType  a = Change (DeltaOf a)
+  PointInDelta PatchPointType  a = DeltaCtx a (DeltaOf a)
 
 -- type DeltaPoint f a = Point DeltaPointType f a
-type PatchPoint f a = Point PatchPointType f a
+type PatchPointK f a = Point PatchPointType f a
 type StaticPoint f a = Point StaticPointType f a
 
 type A = A' Z
-data A' f = A (PatchPoint f Int) (PatchPoint f Int)
-          | Ay (StaticPoint f Int) deriving Generic
-instance HasDelta0 (A' Delta)
+data A' f = A (PatchPointK f Int) (PatchPointK f Int)
+          -- | Ay (StaticPoint f Int)
+          deriving Generic
+-- instance HasDelta0 (A' Delta)
 instance HasDelta A where
   type DeltaOf A = A' Delta
-  type DeltaCtx A = Maybe
+  -- type DeltaCtx A = Change
 deriving instance (Constraints (A' f) Show) => Show (A' f)
-a1,a2,ay1,ay2 :: A
+a1,a2
+ -- ,ay1,ay2
+ :: A
 a1 = A 1 1
 a2 = A 2 1
-ay1 = Ay 1
-ay2 = Ay 1
+-- ay1 = Ay 1
+-- ay2 = Ay 1
+data SigChange a = SigUnchanged a | SigChanged a
+ deriving Functor
+instance Applicative SigChange where
+  pure = SigUnchanged
+  (SigUnchanged f) <*> (SigUnchanged a) = SigUnchanged (f a)
+  (SigUnchanged f) <*> (SigChanged a) = SigChanged (f a)
+  (SigChanged f) <*> (SigUnchanged a) = SigChanged (f a)
+  (SigChanged f) <*> (SigChanged a) = SigChanged (f a)
+change ::  b ->  (a -> b) -> Change a -> b
+change _ f (Changed a) = f a
+change b _ _           = b
+sigChange :: (a -> b) -> (a -> b) -> SigChange a -> b
+sigChange u _ (SigUnchanged a) = u a
+sigChange _ c (SigChanged a)   = c a
 
 class Functor ctx => HasDeltaGen ctx a d where
   calcDeltaGen :: a p -> a p -> ctx (d p)
   -- applyDeltaGen :: c p -> d p -> Maybe (c p)
 
-instance        (Applicative ctx , HasDelta a, PatchOf a ~ Revise a d ) =>
-  HasDeltaGen ctx (K1 x a) (K1 x (Revise a d)) where
-  calcDeltaGen a a' =  pure . K1 $ calcPatchOf (unK1 a) (unK1 a')
-instance        (Applicative ctx, HasDelta a, PatchOf a ~ Revise a d, HasDelta0 d ) =>
-  HasDeltaGen ctx (K1 x a) (K1 x (Changed (Revise a d))) where
-  calcDeltaGen a a' =  pure . K1 . nullify $ calcPatchOf (unK1 a) (unK1 a')
+
+instance               (HasDeltaGen (Revise r) a d) =>
+  HasDeltaGen (Revise r) (D1 x a) (D1 x d) where
+  calcDeltaGen c d = M1 <$>
+                    calcDeltaGen @(Revise r) @a @d (unM1 c) (unM1 d)
+-- instance               (HasDeltaGen (Revise r) a d) =>
+--   HasDeltaGen (Revise r) (D1 x a) (D1 x d) where
+--   calcDeltaGen c d = maybe Unchanged (Changed . M1)
+--                    $ calcDeltaGen @(Revise r) @a @d (unM1 c) (unM1 d)
+    -- SigUnchanged _ -> Unchanged
+    -- SigChanged   x -> Changed $ M1 x
+instance               (Functor ctx, HasDeltaGen ctx a d) =>
+  HasDeltaGen ctx (C1 x a) (C1 x d) where
+  calcDeltaGen c d = M1 <$> calcDeltaGen @ctx (unM1 c) (unM1 d)
+instance               (HasDeltaGen ctx a d) =>
+  HasDeltaGen ctx (S1 x a) (S1 x d) where
+  calcDeltaGen c d = M1 <$> calcDeltaGen @ctx (unM1 c) (unM1 d)
+
+-- instance        (Applicative ctx , HasDelta a, PatchOf a ~ Revise a d ) =>
+--   HasDeltaGen ctx (K1 x a) (K1 x (Revise a d)) where
+--   calcDeltaGen a a' =  pure . K1 $ calcPatchOf (unK1 a) (unK1 a')
+instance        ( HasDelta a, DeltaCtx a (DeltaOf a) ~ Revise r d
+                ) =>
+  HasDeltaGen (Revise r) (K1 x a) (K1 x (Revise r d)) where
+  calcDeltaGen a a' = bimap (K1 . Replace) (K1 . Update)
+                    $ calcDeltaOf (unK1 a) (unK1 a')
 instance        (Applicative ctx) =>
   HasDeltaGen ctx (K1 x a) (K1 x (Static b)) where
   calcDeltaGen a a' =  pure $ K1 Static
@@ -207,19 +240,17 @@ instance                ( HasDeltaGen ctx al dl
   calcDeltaGen (al :*: ar) (al' :*: ar') = (:*:)
                                       <$> calcDeltaGen @ctx al al'
                                       <*> calcDeltaGen @ctx ar ar'
-instance                ( HasDeltaGen Maybe al dl
-                        , HasDeltaGen Maybe ar dr ) =>
-  HasDeltaGen Maybe (al :+: ar) (dl :+: dr) where
-  calcDeltaGen (L1 a) (L1 a') = L1 <$> calcDeltaGen a a'
-  calcDeltaGen (R1 a) (R1 a') = R1 <$> calcDeltaGen a a'
-  calcDeltaGen _       _      = Nothing
-instance               (HasDeltaGen ctx a d) =>
-  HasDeltaGen ctx (M1 t x a) (M1 t x d) where
-  calcDeltaGen c d = M1 <$> calcDeltaGen @ctx (unM1 c) (unM1 d)
+-- instance                ( HasDeltaGen SigChange al dl
+--                         , HasDeltaGen SigChange ar dr
+--                         ) =>
+--   HasDeltaGen SigChange (al :+: ar) (dl :+: dr) where
+--   calcDeltaGen (L1 a) (L1 a') = L1 <$> sigChange  calcDeltaGen a a'
+--   calcDeltaGen (R1 a) (R1 a') = R1 <$> calcDeltaGen a a'
+--   calcDeltaGen _       _      = Nothing
 
 
 class HasDelta0Gen a where
-  nullifyGen :: a p -> Changed (a p)
+  nullifyGen :: a p -> Change (a p)
 instance        (HasDelta0 a) =>
   HasDelta0Gen (K1 x a) where
   nullifyGen = fmap K1 . nullify . unK1
@@ -242,25 +273,30 @@ instance        ( HasDelta0Gen a, HasDelta0Gen b ) =>
 
 -- | Only never Change
 instance HasDelta () where
-  type DeltaOf () = ()
-  calcDeltaOf _ _ = Just ()
+  type DeltaOf () = Void
+  type DeltaCtx () = Static
+  calcDeltaOf _ _ = Static
 
 -- | Effectually enum types, detects different "constructor"
-calcDeltaOfNEQ :: Eq a => a -> a -> Maybe ()
-calcDeltaOfNEQ a b | a == b = Just ()
-                   | otherwise = Nothing
+calcDeltaOfNEQ :: Eq a => a -> a -> Revise a ()
+calcDeltaOfNEQ a b | a == b = Update ()
+                   | otherwise = Replace b
 instance HasDelta Bool where
   type DeltaOf Bool = ()
+  type DeltaCtx Bool = Revise Bool
   calcDeltaOf = calcDeltaOfNEQ
 instance HasDelta Int where
   type DeltaOf Int = ()
+  type DeltaCtx Int = Revise Int
   calcDeltaOf = calcDeltaOfNEQ
-instance HasDelta Double where
-  type DeltaOf Double = ()
-  calcDeltaOf = calcDeltaOfNEQ
-instance HasDelta Char where
-  type DeltaOf Char = ()
-  calcDeltaOf = calcDeltaOfNEQ
+-- instance HasDelta Double where
+--   type DeltaOf Double = ()
+  -- type DeltaCtx
+--   calcDeltaOf = calcDeltaOfNEQ
+-- instance HasDelta Char where
+--   type DeltaOf Char = ()
+--   calcDeltaOf = calcDeltaOfNEQ
 instance HasDelta String where
   type DeltaOf String = ()
+  type DeltaCtx String = Revise String
   calcDeltaOf = calcDeltaOfNEQ
