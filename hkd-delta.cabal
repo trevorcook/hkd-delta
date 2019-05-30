@@ -1,18 +1,26 @@
 cabal-version:       2.0
 name:                hkd-delta
-version:             0.0.0.1
+version:             0.0.1
 synopsis:            Definition of "Delta structures" for higher kinded data.
--- description:
+description:
+    A library for calculating and applying differences in
+    higher kinded data (HKD).
+
 homepage:            github.com/trevorcook/hkd-delta
 -- bug-reports:
 license:             BSD3
 license-file:        LICENSE
 author:              Trevor Cook
 maintainer:          trevor.j.cook@gmail.com
--- copyright:
+copyright:           Trevor Cook
 category:            Data
 build-type:          Simple
-extra-source-files:  CHANGELOG.md
+extra-source-files:  CHANGELOG.md, README.md
+
+source-repository this
+  type: git
+  location: git://github.com/trevorcook/hkd-delta.git
+  tag: 0.0.1
 
 library
   exposed-modules:    HKD.Delta
