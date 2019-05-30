@@ -1,10 +1,10 @@
-{ mkDerivation, base, one-liner, stdenv }:
+{ mkDerivation, base, stdenv }:
 mkDerivation {
-  pname = "delta-HKD";
+  pname = "hkd-delta";
   version = "0.0.0.1";
   src = ./.;
-  libraryHaskellDepends = [ base one-liner ];
-  homepage = "github.com/trevorcook/delta-HKD";
+  libraryHaskellDepends = [ base ];
+  homepage = "github.com/trevorcook/hkd-delta";
   description = "Definition of \"Delta structures\" for higher kinded data";
   license = stdenv.lib.licenses.bsd3;
 }

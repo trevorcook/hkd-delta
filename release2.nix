@@ -2,5 +2,5 @@ let
   pkgs = import <nixpkgs> { };
 
 in
-  { delta-HKD = pkgs.haskellPackages.callPackage ./delta-HKD.nix { };
+  { hkd-delta = pkgs.haskellPackages.callPackage ./hkd-delta.nix { };
   }

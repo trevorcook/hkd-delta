@@ -1,1 +1,1 @@
-(import ./release2.nix).delta-HKD.env
+(import ./release2.nix).hkd-delta.env

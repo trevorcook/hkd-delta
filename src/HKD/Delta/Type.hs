@@ -1,8 +1,13 @@
-module Delta.Type where
+module Delta.Type
+  ( Static(..)
+  , Change(..), change
+  , Revise(..), revise
+  ) where
 
 import Data.Bifunctor
 import GHC.Generics
 
+data Static a = Static deriving (Generic,Show,Functor)
 
 data  Change a = Unchanged | Changed a deriving (Show,Functor)
 instance Applicative Change where
@@ -23,12 +28,6 @@ instance Foldable Change where
 instance Traversable Change where
   traverse f (Changed a) = Changed <$> f a
   traverse _ _   = pure Unchanged
-isChanged :: Change a -> Bool
-isChanged Unchanged = False
-isChanged _ = True
-changedToMaybe :: Change a-> Maybe a
-changedToMaybe (Changed a) = Just a
-changedToMaybe _ = Nothing
 change ::  b ->  (a -> b) -> Change a -> b
 change _ f (Changed a) = f a
 change b _ _           = b
