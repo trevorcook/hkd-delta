@@ -26,6 +26,7 @@ library
   exposed-modules:    HKD.Delta
                       HKD.Delta.Class
                       HKD.Delta.Type
+                      Test
   -- other-modules:
   default-extensions:  TypeFamilies, TypeOperators,TypeFamilyDependencies,
     StandaloneDeriving, DeriveFunctor, DeriveGeneric,
@@ -34,5 +35,6 @@ library
     FunctionalDependencies, FlexibleInstances, FlexibleContexts,
     ScopedTypeVariables, RankNTypes, AllowAmbiguousTypes, TypeApplications
   build-depends:       base ^>=4.12.0.0
+                      ,one-liner
   hs-source-dirs:      src
   default-language:    Haskell2010

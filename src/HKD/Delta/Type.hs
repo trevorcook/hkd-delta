@@ -1,4 +1,4 @@
-module Delta.Type
+module HKD.Delta.Type
   ( Static(..)
   , Change(..), change
   , Revise(..), revise
