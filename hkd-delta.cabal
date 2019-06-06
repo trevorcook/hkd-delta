@@ -3,8 +3,10 @@ name:                hkd-delta
 version:             0.0.1
 synopsis:            Definition of "Delta structures" for higher kinded data.
 description:
-    A library for calculating and applying differences in
-    higher kinded data (HKD).
+    A library for calculating and applying changes (deltas) of/to data, with
+    emphasis on automatic delta calculations for Higher Kinded Data (HKD).
+
+    To get started, see README.md or the documentation in `HKD.Class`.
 
 homepage:            github.com/trevorcook/hkd-delta
 -- bug-reports:
@@ -26,7 +28,7 @@ library
   exposed-modules:    HKD.Delta
                       HKD.Delta.Class
                       HKD.Delta.Type
-                      Test
+
   -- other-modules:
   default-extensions:  TypeFamilies, TypeOperators,TypeFamilyDependencies,
     StandaloneDeriving, DeriveFunctor, DeriveGeneric,
@@ -35,6 +37,5 @@ library
     FunctionalDependencies, FlexibleInstances, FlexibleContexts,
     ScopedTypeVariables, RankNTypes, AllowAmbiguousTypes, TypeApplications
   build-depends:       base ^>=4.12.0.0
-                      ,one-liner
   hs-source-dirs:      src
   default-language:    Haskell2010

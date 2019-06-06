@@ -7,9 +7,15 @@ module HKD.Delta.Type
 import Data.Bifunctor
 import GHC.Generics
 
+-- |Useful 'DeltaOf' for data that doesn't change, and for changes
+-- that will be ignored.
 data Static a = Static deriving (Generic,Show,Functor)
 
-data  Change a = Unchanged | Changed a deriving (Show,Functor)
+-- | The 'Maybe' type for Deltas. Useful for signaling that there is
+-- some change within a data structure. This is recognized by the
+-- generically derived delta methods, such that a construction with all
+-- 'Unchanged' fields will yield an 'Unchanged' data.
+data Change a = Unchanged | Changed a deriving (Show,Functor)
 instance Applicative Change where
   pure = Changed
   Changed f <*> Changed a = Changed $ f a
@@ -28,15 +34,20 @@ instance Foldable Change where
 instance Traversable Change where
   traverse f (Changed a) = Changed <$> f a
   traverse _ _   = pure Unchanged
+
 change ::  b ->  (a -> b) -> Change a -> b
 change _ f (Changed a) = f a
 change b _ _           = b
 
+-- |'Either' for deltas. Used to signal that the delta is a full replacement
+-- or just an update.
 data Revise r u = Replace r | Update u
   deriving (Generic,Show,Eq,Functor)
+
 revise :: (r -> z) -> (u -> z) -> Revise r u -> z
 revise f _ (Replace r) = f r
 revise _ g (Update u)  = g u
+
 instance Applicative (Revise r) where
   pure u = Update u
   Update f <*> Update u = Update (f u)
@@ -58,3 +69,5 @@ instance Semigroup (Revise r (r -> r)) where
   Update u <> Update u' = Update (u' . u)
 instance Monoid (Revise r (r -> r)) where
   mempty = Update id
+
+  
