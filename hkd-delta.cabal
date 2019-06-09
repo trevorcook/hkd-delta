@@ -8,7 +8,7 @@ description:
 
     To get started, see README.md or the documentation in `HKD.Class`.
 
-homepage:            github.com/trevorcook/hkd-delta
+homepage:            https://github.com/trevorcook/hkd-delta
 -- bug-reports:
 license:             BSD3
 license-file:        LICENSE
