@@ -13,6 +13,8 @@ import Generics.OneLiner
 import Data.Text (Text)
 import qualified Data.Text as T
 ```
+
+## A simple example
 The HasDelta class is central to this library, with it we declare how
 differences in a type are measured, whether or not the differences
 can always be measured, and functions for measuring and applying differences.
@@ -33,11 +35,14 @@ neqText = calcDelta @Text "a" "ab"
 --neqTex = Changed "ab"
 eqText = calcDelta @Text "a" "a"
 -- eqText = Unchanged
-
 ```
+
+## Deltas for Higher Kinded Data: Delta Kinded Data
+
 Having defined a basic type, we next look at automatically generating
 delta functionality for more interesting types.
 First, we define a data type in Higher Kinded Data style
+
 ```haskell
 type Citizen = Citizen' Z
 data Citizen' f = Citizen { name        :: HK f Text
@@ -45,28 +50,32 @@ data Citizen' f = Citizen { name        :: HK f Text
                     deriving Generic
 deriving instance (Constraints (Citizen' f) Show)  --provided by one-liner
   => Show (Citizen' f)
-
 ```
+
 Each field in our data is parameterized by a type constructor,
 `f`, and a type function, `HK` which together control the expression of the
 data at that field. A custom defined `Z` "escapes" from higher kinding,
 allowing the data to just be itself. Another custom designed data,
 `Delta` makes the data express the `DeltaReturn` of the data, which--
 generally--is either a change in the data or a new copy of the data.
+
 ```haskell
 data Z a
 data Delta a
 type family HK (f :: * -> *) (a :: *) :: * where
   HK Z a = a
   HK Delta a = DeltaReturn a
-
 ```
+
 Next the `Citizen` is declared to have a delta, defined as
 simply the `Citizen'` in the `Delta state`. This library is designed
 to work with data such as this, and so no further definitions are needed.
 DeltaAlways, calcDelta, and applyDelta are derived via Generic mechanisms.
+
+```haskell
 instance HasDelta Citizen where
-type DeltaOf Citizen = Citizen' Delta
+  type DeltaOf Citizen = Citizen' Delta
+```
 
 Here we demonstrate a calculated difference between two
 citizens, Mary and Mark.
@@ -86,14 +95,16 @@ mayorMike :: Citizen
 mayorMike = Citizen  "Mike" "Mayor"
 mayorMark = applyDelta mayorMike compMaryMark
 -- mayorMark = Citizen {name = "Mark", occupation = "Mayor"}
-
 ```
+
+## Detecting Changes
 As noted, the 'Changed' constructor belongs to the `Change` type. And
 this library provides special handling for Change deltas.
-Speciffically, it allows `Unchanged` values to be propagated down a delta,
+Specifically, it allows `Unchanged` values to be propagated down a delta,
 such that all unchanged fields result in an `Unchanged` delta.
 
 For instance first observe the following delta is the same as Unchanged
+
 ```haskell
 dMaryMary = calcDelta mary mary
 -- dMaryMary = Citizen {name = Unchanged, occupation = Unchanged}
@@ -107,13 +118,18 @@ We can capture this equality by specifying the DeltaOf as a Change Type
 instance HasDelta Citizen where
   type DeltaOf Citizen = Change (Citizen' Delta)
 ```
+
 the calculation dMaryMary now results in.
+
 ```haskell
 -- dMaryMary = Unchanged
-
 ```
+
+## Multiple Constructor Deltas
+
 There is another special type, `Revise`, this libraries version of Either.
 It is used when a data type has more than one construction.
+
 ```haskell
 type Vehicle = Vehicle' Z
 data Vehicle' f = Car { carType :: HK f Text }
@@ -124,8 +140,8 @@ deriving instance (Constraints (Vehicle' f) Show)
 instance HasDelta Vehicle where
   type DeltaOf Vehicle = Change (Vehicle' Delta)
   --type DeltaAlways = False (derived by a type family)
-
 ```
+
 Now, two different Cars will result in an 'Update (DeltaOf)'
 
 ```haskell
@@ -142,11 +158,11 @@ carDiff = calcDelta (Car "red"::Vehicle) (CrashedCar "very bad")
 
 ```
 Additionally, because `Revise` is traversable, we can quickly find that
-whether or not a 'Revise a (Change b)' is a change.
+whether or not a 'Revise a (Change b)' is a change, via `sequenceA`
+
 ```haskell
 colorDiff' = sequenceA colorDiff
 -- colorDiff' = Changed (Update (Car {carType = Changed "blue"}))
 colorDiff'' = sequenceA $ calcDelta (Car "red" :: Vehicle)(Car "red" :: Vehicle)
 -- colorDiff'' = Unchanged
-
 ```
